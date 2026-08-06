@@ -358,4 +358,8 @@ comments as a discussion point for real patch review, not a decision made here.
   schema on the client side as a stopgap until the patches land.
 
 ## License
+ This project is dual-licensed under the **GNU General Public License v3.0** 
+ and the **GNU Lesser General Public License v3.0**. See the [LICENSE](LICENSE) 
+ file for the full text of both agreements.
+
 
