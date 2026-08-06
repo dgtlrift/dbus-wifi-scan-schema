@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.org/schemas/dbus-wifi-scan-schema/ap-scan-record.json",
+  "title": "WifiGeolocationScan Access Point Record",
+  "description": "One observed Wi-Fi access point, in a shape close to the Google Geolocation API / Mozilla Ichnaea 'wifiAccessPoints' entry shape. This is the per-record shape returned inside the array from the proposed org.freedesktop.WifiGeolocationScan1.GetScanResults() D-Bus method (see README.md). Reconciled from what NetworkManager's org.freedesktop.NetworkManager.AccessPoint interface and (in principle, pending the ConnMan patch) ConnMan's scan data can actually supply -- see README.md 'What each patch needs to add'.",
+  "type": "object",
+  "properties": {
+    "macAddress": {
+      "type": "string",
+      "description": "BSSID of the access point, lower-case colon-separated hex octets, e.g. 'aa:bb:cc:dd:ee:ff'. Maps 1:1 from NetworkManager AccessPoint.HwAddress (already this exact format). ConnMan does not currently expose or internally retain this value anywhere above the gsupplicant BSS layer -- see README.md. Required because it is the entire point of this schema (geolocation APIs match on BSSID, not SSID).",
+      "pattern": "^([0-9a-f]{2}:){5}[0-9a-f]{2}$"
+    },
+    "signalStrength": {
+      "type": "integer",
+      "description": "Signal strength in dBm (RSSI, not SNR -- see README.md 'Why dBm (RSSI), not SNR'), negative, typically in the range -100 (very weak) to -20 (very strong). Both NetworkManager and ConnMan already receive a real, calibrated dBm value from wpa_supplicant during scan processing and currently discard it after computing a lossy 0-100 percent (see README.md's 'signal-strength unit problem' section, with exact source line citations) -- both patches retain and expose that real value instead, so this field is real dBm in the normal case, not an estimate. 'signalStrengthUnit' below still exists to flag the interim case (querying an *unpatched* backend today via reference_client.py) where only a lossy percent-derived estimate is available."
+    },
+    "signalStrengthUnit": {
+      "type": "string",
+      "enum": ["dBm", "dBm_estimated_from_percent"],
+      "default": "dBm",
+      "description": "'dBm' is the normal, expected value once both patches land -- both backends retain and expose the real dBm they already receive (see README.md), no estimation involved. 'dBm_estimated_from_percent' is an interim-only fallback for reference_client.py querying an unpatched NM/ConnMan today, where only the lossy 0-100 percent is available and a best-effort linear conversion (documented in README.md) is applied -- consumers should treat these with reduced confidence and expect this value to disappear once both patches ship."
+    },
+    "signalStrengthRawPercent": {
+      "type": ["integer", "null"],
+      "minimum": 0,
+      "maximum": 100,
+      "description": "The backend's 0-100 percent/quality value (NetworkManager AccessPoint.Strength; ConnMan Service/Network Strength), carried through alongside signalStrength for debugging/cross-checking even when signalStrength is real dBm, not just in the estimated-fallback case. Null/absent only if a future backend genuinely has no percent value at all."
+    },
+    "ssid": {
+      "type": ["string", "null"],
+      "description": "Network name, UTF-8 decoded best-effort. May be null/absent for hidden networks (NetworkManager exposes these via GetAllAccessPoints with an empty Ssid). Not used for geolocation matching, included for debuggability only."
+    },
+    "frequencyMhz": {
+      "type": ["integer", "null"],
+      "description": "Channel center frequency in MHz. Maps directly from NetworkManager AccessPoint.Frequency (already MHz). Not currently available from ConnMan's D-Bus API at all (ConnMan's internal connman_network struct does have a 'frequency' field, but the Service D-Bus object does not expose it) -- null until/unless the ConnMan patch adds it."
+    },
+    "lastSeenMs": {
+      "type": ["integer", "null"],
+      "description": "Milliseconds since UNIX epoch when this AP was last observed in a scan, if the backend can supply it. NetworkManager's AccessPoint.LastSeen is CLOCK_BOOTTIME seconds (NOT wall-clock epoch, and -1 means never seen) -- callers must convert using the host's boottime/wallclock offset if an absolute timestamp is needed; this schema field assumes that conversion has already been done by the D-Bus service implementation, not deferred to the client. Null if unavailable."
+    },
+    "source": {
+      "type": "string",
+      "enum": ["networkmanager", "connman"],
+      "description": "Which backend produced this record. Included because the two backends currently have different fidelity (see README.md) and a downstream client may want to weight results accordingly, at least until both patches land and fidelity converges."
+    }
+  },
+  "required": ["macAddress", "signalStrength", "signalStrengthUnit", "source"],
+  "additionalProperties": false
+}
